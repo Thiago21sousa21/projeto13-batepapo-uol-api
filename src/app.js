@@ -3,6 +3,8 @@ import cors from 'cors';
 import { MongoClient } from 'mongodb';
 import joi from "joi";
 import dotenv from "dotenv";
+import dayjs from 'dayjs';
+
 
 const app = express();
 app.use(express.json());
@@ -20,33 +22,50 @@ const loginSchema = joi.object({
     name: joi.string().min(1).required()
 });
 
-const messageSchema = joi.object({
-    from: joi.string().min(1).required(),
-    to: joi.string().min(1).required(),
-    text: joi.string().min(1).required(),
-    type: joi.string().min(1).required(),
-    //time: joi.string().min(1).required()
-});
 
+//
 
-//envia nome do usuario
-app.post('/participants', (req, res)=>{
+//ENVIA O NOME DO USUARIO NA HORA QUE ELE ENTRA NA SALA
+app.post('/participants', async(req, res)=>{
     const {name} = req.body;
     const validation = loginSchema.validate({name});
-    console.log(validation.error);
     if(validation.error) return res.sendStatus(422);
     
-    db.collection("participants").findOne({name})
-        .then((result)=> { 
-            if(result){
-                return res.sendStatus(409);
-            } else{
-                db.collection("participants").insertOne({name, lastStatus: Date.now()})
-                    .then(()=>{res.send('ok')})
-                    .catch((err)=>sendStatus(500))
-            }
-        })           
-        .catch(()=> res.sendStatus(500));   
+    // db.collection("participants").findOne({name})
+    //     .then((result)=> { 
+    //         if(result){
+    //             return res.sendStatus(409);
+    //         } else{
+    //             db.collection("participants").insertOne({name, lastStatus: Date.now()})
+    //                 .then(()=>{
+    //                     db.collection('messages').insertOne({ 
+    //                         from: name,
+    //                         to: 'Todos',
+    //                         text: 'entra na sala...',
+    //                         type: 'status',
+    //                         time: dayjs.format('HH:mm:ss')
+    //                     });
+    //                     res.sendStatus(201)})
+    //                 .catch((err)=>res.sendStatus(500))
+    //         }
+    //     })           
+    //     .catch(()=> res.sendStatus(500));   
+    try {
+        const result = await db.collection("participants").findOne({ name});
+        if (result) return res.sendStatus(409);    
+        await db.collection("participants").insertOne({ name, lastStatus: Date.now() });    
+        
+        await db.collection("messages").insertOne({
+          from: name,
+          to: "Todos",
+          text: "entra na sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        });
+        res.sendStatus(201);
+      } catch (error) {
+        res.status(500).send(console.log(error.message));
+      }
 });
 
 
@@ -59,8 +78,21 @@ app.get('/participants', (req, res)=>{
 
 // envia uma mensagem
 app.post('/messages', (req, res)=>{
+
+    const messageSchema = joi.object({
+        from: joi.string().min(1).required(),
+        to: joi.string().min(1).allow('Todos').required(),
+        text: joi.string().min(1).required(),
+        type: joi.string().min(1).allow('message', 'private_message').required(),
+    }); 
     const {to, text, type} = req.body;
-    db.collection('messages').insertOne({to, text, type});
+    const validation = messageSchema.validate(req.body);
+    if(validation.error){
+        const errors = validation.error.details.map((detail) => detail.message);
+        return res.status(422).send(errors);
+    }
+    const {from} = req.header;
+    db.collection('messages').insertOne({to, text, type, time: dayjs().format('hh:mm:ss') });
     res.send('ok');
 });
 
