@@ -23,8 +23,6 @@ const loginSchema = joi.object({
 });
 
 
-//
-
 //ENVIA O NOME DO USUARIO NA HORA QUE ELE ENTRA NA SALA
 app.post('/participants', async(req, res)=>{
     const {name} = req.body;
@@ -109,7 +107,7 @@ app.get('/messages', async(req, res)=>{
 
     const validLimit = !limit || limit && limit > 0;
     const validUser = await db.collection('participants').findOne({name: user});
-    console.log( validLimit, validUser);
+    //console.log( validLimit, validUser);
     if(!validLimit || !validUser )return res.sendStatus(422);
 
     db.collection( 'messages').find({ $or: [{ from: user }, { to: user }, { to: "Todos" }] })
@@ -139,6 +137,31 @@ app.post('/status', async(req, res)=>{
         res.status(500).send(error.message)
     }) ;
 
-})
+});
+
+//fazendo o Setinterval que deleta os inativos
+setInterval(async()=>{
+    console.log('setInterval');
+    const result = await db.collection('participants').find().toArray();
+    result.forEach( async (element) => {
+        //console.log(element)
+        const {name, lastStatus} = element;
+        //console.log(name, lastStatus);
+        if(Date.now() - lastStatus > 10000 ){
+            await db.collection('messages').insertOne({
+                from: name,
+                to: 'Todos',
+                text: 'sai da sala...',
+                type: 'status',
+                time: dayjs().format('HH:mm:ss')
+            });
+            console.log('deletei ', name);
+            await db.collection('participants').deleteOne({name});
+        }
+    });
+
+},15000);
+
+
 
 app.listen( PORT ,()=>{ console.log(`RUNING PORT ${PORT}`)});
