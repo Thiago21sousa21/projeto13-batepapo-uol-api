@@ -93,7 +93,7 @@ app.post('/messages', async(req, res)=>{
     if(!userValidation)return res.sendStatus(422);
     try{
         await db.collection('messages').insertOne({from:user, to, text, type, time: dayjs().format('hh:mm:ss') });
-        res.send('ok');    
+        res.sendStatus(201);    
     }catch(error){
         res.status(500).send(error.message);
     }
