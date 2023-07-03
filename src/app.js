@@ -94,7 +94,7 @@ app.post('/messages', async(req, res)=>{
     }
     if(!userValidation)return res.sendStatus(422);
     try{
-        await db.collection('messages').insertOne({user, to, text, type, time: dayjs().format('hh:mm:ss') });
+        await db.collection('messages').insertOne({from:user, to, text, type, time: dayjs().format('hh:mm:ss') });
         res.send('ok');    
     }catch(error){
         res.status(500).send(error.message);
@@ -120,6 +120,25 @@ app.get('/messages', async(req, res)=>{
             res.send(messages)
         })
         .catch(error => res.status(500).send(error));
+});
+
+
+//fazendo o post status
+app.post('/status', async(req, res)=>{
+    const {user} = req.headers;
+
+    const userValid = await db.collection('participants').findOne({name: user});
+    if( !user || !userValid )return res.sendStatus(404);
+    
+    db.collection('participants')
+    .updateOne({name: user}, {$set:{lastStatus: Date.now()}})
+    .then(result =>{
+        res.sendStatus(200);
+    })
+    .catch(error =>{
+        res.status(500).send(error.message)
+    }) ;
+
 })
 
 app.listen( PORT ,()=>{ console.log(`RUNING PORT ${PORT}`)});
